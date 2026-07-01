@@ -1,0 +1,6 @@
+{
+  "name": "Flash Card Web Application",
+  "description": "A secure, professional full-stack Flash Card Web Application with secure authentication, study modes, statistics, search, and customizable categories.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
