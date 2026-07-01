@@ -1,20 +1,38 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+
+# 🚀🔥 NITESH SAHU'S FLASH CARD 🔥🚀
+
+### 📚 Smart • Fast • Interactive • AI-Powered Flash Cards
+
+<p>
+  <b>Master UPSC • CDS • SSC • Banking • Competitive Exams</b>
+</p>
+
+<br>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:4F46E5,100:06B6D4&height=250&section=header&text=NITESH%20SAHU'S%20FLASH%20CARD&fontSize=55&fontColor=ffffff&animation=fadeIn&fontAlignY=40"/>
+
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+## ✨ Features
 
-View your app in AI Studio: https://ai.studio/apps/2a15416e-9479-46be-83b7-b4eb8b13b451
+- 🧠 AI-Powered Flash Cards
+- 📚 Subject-wise Collections
+- 🎯 Designed for UPSC, CDS, SSC & Banking
+- 🔍 Powerful Search
+- 👤 Secure Authentication
+- ☁️ Supabase Integration
+- 📱 Responsive Design
+- ⚡ Fast & Modern Interface
 
-## Run Locally
+---
 
-**Prerequisites:**  Node.js
+<div align="center">
 
+## ⭐ Learn Smarter. Revise Faster. Crack Your Exam. ⭐
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Made with ❤️ by **Nitesh Sahu**
+
+</div>
