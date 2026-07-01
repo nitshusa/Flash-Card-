@@ -39,6 +39,51 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fireBg {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes fireGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.3), 0 0 2px rgba(245, 158, 11, 0.1); }
+  50% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.6), 0 0 6px rgba(245, 158, 11, 0.3); }
+}
+
+@keyframes paintingBg {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-fire-bg {
+  background-size: 200% 200%;
+  animation: fireBg 3s ease infinite;
+}
+
+.animate-fire-glow {
+  background-image: linear-gradient(135deg, #ea580c, #ef4444, #f59e0b, #dc2626);
+  background-size: 300% 300%;
+  animation: fireBg 4s ease infinite, fireGlow 2s ease-in-out infinite;
+}
+
+.animate-fire-text {
+  background-image: linear-gradient(135deg, #ea580c, #ef4444, #f59e0b, #dc2626);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  animation: fireBg 3s ease infinite;
+  display: inline-block;
+}
+
+.animate-painting-bg {
+  background: linear-gradient(-45deg, #e0f2fe, #f0fdf4, #faf5ff, #fef2f2, #fef3c7, #fff1f2);
+  background-size: 400% 400%;
+  animation: paintingBg 12s ease infinite;
+}
+
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out forwards;
 }

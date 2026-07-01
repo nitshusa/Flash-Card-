@@ -77,9 +77,17 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   // Development helpers
   const [devResetPin, setDevResetPin] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowWelcome(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setError(null);
@@ -250,16 +258,39 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4 selection:bg-indigo-500 selection:text-white" id="auth-root">
-      <div className="w-full max-w-md" id="auth-card-container">
+    <div className="min-h-screen w-full animate-painting-bg flex items-center justify-center p-4 selection:bg-indigo-500 selection:text-white relative overflow-hidden" id="auth-root">
+      {/* 5-sec disappearing welcome message */}
+      {showWelcome && (
+        <motion.div
+          initial={{ opacity: 0, y: -50, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.9 }}
+          transition={{ type: "spring", stiffness: 300, damping: 24 }}
+          className="fixed top-8 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-2xl rounded-full pl-2.5 pr-6 py-2 flex items-center gap-4.5 z-50 scale-105 md:scale-110"
+          id="welcome-toast"
+        >
+          <img 
+            src="/src/assets/images/nish_avatar_1782933234487.jpg" 
+            alt="Nish" 
+            className="w-11 h-11 rounded-full object-cover border-2 border-indigo-100 shadow-md"
+            referrerPolicy="no-referrer"
+          />
+          <div className="text-left leading-tight">
+            <span className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-widest block">Welcome to</span>
+            <span className="text-sm md:text-base font-black text-slate-800">Nish Flash Studio ✨</span>
+          </div>
+        </motion.div>
+      )}
+
+      <div className="w-full max-w-md relative z-10" id="auth-card-container">
         
         {/* Brand Header */}
         <div className="text-center mb-8" id="auth-brand-header">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-100 mb-3" id="brand-logo-icon">
             <Sparkles className="w-6 h-6" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900" id="brand-title">Flash Card Studio</h1>
-          <p className="text-slate-500 mt-2 text-sm" id="brand-tagline">Study efficiently, memorize permanently.</p>
+          <h1 className="text-3xl font-black tracking-tight animate-fire-text" id="brand-title">Nish Flash Studio</h1>
+          <p className="text-slate-600 font-medium mt-2 text-sm" id="brand-tagline">Study efficiently, memorize permanently.</p>
         </div>
 
         {/* Auth Box Card */}

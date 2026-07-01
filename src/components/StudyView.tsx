@@ -208,13 +208,24 @@ export default function StudyView({
   }
 
   const currentCard = deck[currentIndex];
-  const progressPercent = Math.round(((currentIndex + (isFinished ? 1 : 0)) / deck.length) * 100);
+  const progressPercent = deck.length > 0 ? Math.round(((currentIndex + (isFinished ? 1 : 0)) / deck.length) * 100) : 0;
   const cardCategory = currentCard ? categories.find(c => c.id === currentCard.categoryId) : null;
 
   // Average time in seconds
   const averageTime = timeSpent.length > 0 
     ? Math.round((timeSpent.reduce((a, b) => a + b, 0) / timeSpent.length) / 1000)
     : 0;
+
+  if (!isFinished && !currentCard) {
+    return (
+      <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center p-8 z-50 text-white">
+        <div className="w-10 h-10 rounded-lg bg-indigo-600/10 text-indigo-400 flex items-center justify-center mx-auto mb-4 border border-indigo-500/10 animate-pulse">
+          <GraduationCap className="w-6 h-6" />
+        </div>
+        <h2 className="text-sm font-semibold tracking-tight">Initializing study session...</h2>
+      </div>
+    );
+  }
 
   return (
     <div 

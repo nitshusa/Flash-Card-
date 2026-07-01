@@ -817,8 +817,8 @@ export default function App() {
         currentTab={currentTab}
       />
 
-      {/* LEFT SIDEBAR & MAIN BODY GRID */}
-      <div className="pt-16 flex min-h-screen relative" id="layout-body">
+      {/* TOP NAVIGATION & MAIN BODY GRID */}
+      <div className="pt-[120px] flex min-h-screen relative" id="layout-body">
         
         <Sidebar 
           currentTab={currentTab}
@@ -835,9 +835,7 @@ export default function App() {
         />
 
         {/* MAIN DISPLAY CONTENT BOX */}
-        <main className={`flex-1 p-6 md:p-8 transition-all duration-300 ${
-          sidebarCollapsed ? 'ml-16' : 'ml-16 lg:ml-64'
-        }`} id="main-display-container">
+        <main className="flex-1 w-full max-w-7xl mx-auto p-6 md:p-8" id="main-display-container">
           
       {/* TAB 1: DASHBOARD VIEW */}
       {currentTab === 'dashboard' && (

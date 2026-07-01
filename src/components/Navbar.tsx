@@ -37,21 +37,15 @@ export default function Navbar({
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 md:px-8 z-40 selection:bg-indigo-500 selection:text-white" id="navbar-header">
       
-      {/* Brand Logo & Mobile Trigger */}
+      {/* Brand Logo */}
       <div className="flex items-center gap-3" id="navbar-brand-section">
-        <button 
-          onClick={onMenuToggle}
-          className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-500 lg:hidden cursor-pointer"
-          id="mobile-menu-trigger"
-        >
-          <Menu className="w-5.5 h-5.5" />
-        </button>
-
         <div className="flex items-center gap-2" id="navbar-logo-group">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-sm">
             <Sparkles className="w-4 h-4 fill-white" />
           </div>
-          <span className="font-bold text-slate-900 tracking-tight hidden sm:inline-block">Flash Card Studio</span>
+          <span className="animate-fire-glow font-black text-white px-3.5 py-1 rounded-full text-xs md:text-sm tracking-wide hidden sm:inline-block shadow-md" id="navbar-brand-name">
+            Nish Flash Studio
+          </span>
         </div>
       </div>
 
