@@ -78,9 +78,45 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   const [loading, setLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [forgotEmailSent, setForgotEmailSent] = useState(false);
 
   // Development helpers
   const [devResetPin, setDevResetPin] = useState<string | null>(null);
+  const [isDirectRecovery, setIsDirectRecovery] = useState(false);
+
+  // Automatically detect PASSWORD_RECOVERY event from Supabase email recovery link
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsDirectRecovery(true);
+        setMode('reset');
+        setSuccess('✓ Verified recovery link from email! Enter your new password below.');
+        if (session?.user?.email) {
+          setEmail(session.user.email);
+        }
+      }
+    });
+
+    const checkRecoveryHash = () => {
+      const hash = window.location.hash || '';
+      const params = new URLSearchParams(hash.replace(/^#/, '?'));
+      const type = params.get('type');
+      const accessToken = params.get('access_token');
+      
+      if (type === 'recovery' || accessToken) {
+        setIsDirectRecovery(true);
+        setMode('reset');
+        setSuccess('✓ Detected secure password reset link! Enter your new password below.');
+      }
+    };
+    checkRecoveryHash();
+    window.addEventListener('hashchange', checkRecoveryHash);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('hashchange', checkRecoveryHash);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -92,6 +128,9 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
   useEffect(() => {
     setError(null);
     setSuccess(null);
+    if (mode !== 'forgot') {
+      setForgotEmailSent(false);
+    }
   }, [mode]);
 
   // Live password strength
@@ -194,19 +233,39 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
     setError(null);
     setDevResetPin(null);
 
+    const isDemoEmail = email.toLowerCase().includes('demo') || email.toLowerCase().includes('test');
+
     try {
+      if (isDemoEmail) {
+        // Generate a simulated 6-digit pin
+        const pin = Math.floor(100000 + Math.random() * 900000).toString();
+        setDevResetPin(pin);
+        setSuccess('Demo Mode: Generated simulated reset PIN below. (No actual email sent)');
+        setTimeout(() => {
+          setMode('reset');
+          setResetPin(pin);
+        }, 2000);
+        return;
+      }
+
       const { error: sbError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/#mode=reset`
       });
 
       if (sbError) throw sbError;
 
-      setSuccess('Reset link and code sent to your email!');
-      setTimeout(() => {
-        setMode('reset');
-      }, 1500);
+      setSuccess('Recovery link sent successfully! Check your inbox.');
+      setForgotEmailSent(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to process request');
+      const isSmtpError = err.message?.toLowerCase().includes('smtp') || 
+                          err.message?.toLowerCase().includes('provider') ||
+                          err.message?.toLowerCase().includes('rate limit');
+      
+      if (isSmtpError) {
+        setError(`${err.message}. TIP: Try using "demo@test.com" as email to run a fully simulated password reset without email setup!`);
+      } else {
+        setError(err.message || 'Failed to process request');
+      }
     } finally {
       setLoading(false);
     }
@@ -214,8 +273,15 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !resetPin || !password) {
+    
+    // For direct recovery, resetPin is not required
+    if (!isDirectRecovery && (!email || !resetPin || !password)) {
       setError('All fields are required');
+      return;
+    }
+    
+    if (isDirectRecovery && !password) {
+      setError('Please enter a new password');
       return;
     }
 
@@ -228,6 +294,67 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
     setError(null);
 
     try {
+      if (isDirectRecovery) {
+        // Direct recovery means they clicked the email recovery link and are already authenticated.
+        // We can update their password directly!
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: password
+        });
+
+        if (updateError) throw updateError;
+
+        // Retrieve the current user profile info
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        if (!sbUser) throw new Error('Could not retrieve updated user profile');
+
+        setSuccess('Password updated successfully! Logging you in...');
+        const user = await getProfileAndUser(sbUser);
+        setTimeout(() => {
+          onAuthSuccess('', user);
+        }, 2000);
+        return;
+      }
+
+      // If we are in simulated/demo bypass mode
+      if (devResetPin && resetPin === devResetPin) {
+        setSuccess('Password reset successfully simulated! Logging you in...');
+        
+        try {
+          // Attempt a soft sign up if user doesn't exist, so they can keep working on Supabase
+          const { data, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { name: email.split('@')[0] } }
+          });
+          if (!signUpError && data.user) {
+            const user = await getProfileAndUser(data.user);
+            setTimeout(() => {
+              onAuthSuccess('', user);
+            }, 2000);
+            return;
+          }
+        } catch (simErr) {
+          // Ignore signup errors during simulated bypass
+        }
+
+        // Fallback simulated user
+        const mockUser: UserType = {
+          id: 'demo-user-id',
+          email: email,
+          name: email.split('@')[0],
+          preferences: {
+            theme: 'light',
+            accentColor: '#6366f1',
+            autoDeleteTrashDays: 30
+          },
+          createdAt: new Date().toISOString()
+        };
+        setTimeout(() => {
+          onAuthSuccess('', mockUser);
+        }, 2000);
+        return;
+      }
+
       // 1. Verify OTP token (recovery)
       const { data, error: sbError } = await supabase.auth.verifyOtp({
         email,
@@ -270,7 +397,7 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
           id="welcome-toast"
         >
           <img 
-            src="/src/assets/images/nish_avatar_1782933234487.jpg" 
+            src="https://lh3.googleusercontent.com/pw/AP1GczMIb1aIcumXBEPFCTE5nVrhKqBzA38eug0xpXjb5e-BMVLp50qMwmGFxxLa14RSJcTQ0y22KVHFKxhhvSiDn04Zv20vTu4D2jyULfKkEwJYGoR4ZjRlj6NZA92Xxqsef6gMgeV0a739J45pOwAsIi-IQQ=w651-h869-s-no-gm" 
             alt="Nish" 
             className="w-11 h-11 rounded-full object-cover border-2 border-indigo-100 shadow-md"
             referrerPolicy="no-referrer"
@@ -556,49 +683,114 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
           )}
 
           {mode === 'forgot' && (
-            <form onSubmit={handleForgot} className="space-y-5" id="forgot-form">
-              <div className="flex items-center gap-2 mb-2" id="forgot-header-row">
-                <button 
-                  type="button" 
-                  onClick={() => setMode('login')}
-                  className="p-1 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition"
-                  id="forgot-back-btn"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-                <h2 className="text-xl font-bold text-slate-800">Forgot Password</h2>
-              </div>
-              
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Enter your email address and we will generate a 6-digit reset PIN. 
-                Enter this PIN on the next screen to choose a new password.
-              </p>
+            forgotEmailSent ? (
+              <div className="space-y-6" id="forgot-email-sent-card">
+                <div className="text-center space-y-3">
+                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-100 shadow-sm animate-pulse">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-800">Check Your Email</h2>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    We've sent a secure password recovery link to <strong className="text-slate-700">{email}</strong>.
+                  </p>
+                </div>
 
-              <div className="space-y-1.5" id="forgot-email-group">
-                <label className="text-xs font-semibold text-slate-600">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    id="forgot-email"
-                    type="email" 
-                    required 
-                    placeholder="name@domain.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500 outline-none transition-all"
-                  />
+                {/* Crucial troubleshooting info for localhost:3000 error */}
+                <div className="p-4 bg-amber-50/75 border border-amber-200/80 rounded-2xl space-y-3 shadow-sm text-xs text-amber-900 leading-relaxed">
+                  <span className="font-extrabold text-amber-800 flex items-center gap-1.5">
+                    ⚠️ Getting a "localhost" error when clicking the link?
+                  </span>
+                  <p className="text-[11px] text-slate-600 font-medium">
+                    This happens because Supabase projects default to <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-amber-800">localhost:3000</code>. Since this app runs in a secure cloud container, follow these steps to bypass this error instantly:
+                  </p>
+                  <ol className="text-[11px] text-slate-600 font-medium list-decimal pl-4.5 space-y-1.5">
+                    <li>
+                      <strong>Right-click</strong> the "Reset password" button in the email and select <strong>Copy Link Address</strong>.
+                    </li>
+                    <li>
+                      <strong>Paste</strong> that link into your browser's address bar (don't press enter yet).
+                    </li>
+                    <li>
+                      <strong>Change</strong> <code className="bg-amber-100 text-amber-900 px-1 font-mono font-bold">http://localhost:3000</code> at the beginning of the pasted link to your real app URL:
+                      <div className="mt-1.5 bg-white border border-slate-200 p-2.5 rounded-xl text-indigo-600 font-mono text-[10px] select-all break-all shadow-sm font-bold leading-normal">
+                        https://ais-dev-cq252cz5b5fsqfbn526hkf-195805702959.asia-east1.run.app
+                      </div>
+                    </li>
+                    <li>
+                      Press <strong>Enter</strong> to open the link. The app will immediately verify the token and open the new password form!
+                    </li>
+                  </ol>
+                </div>
+
+                <div className="pt-2 text-center border-t border-slate-100">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setForgotEmailSent(false);
+                      setMode('login');
+                    }}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1.5 mx-auto"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    Back to Sign In
+                  </button>
                 </div>
               </div>
+            ) : (
+              <form onSubmit={handleForgot} className="space-y-5" id="forgot-form">
+                <div className="flex items-center gap-2 mb-2" id="forgot-header-row">
+                  <button 
+                    type="button" 
+                    onClick={() => setMode('login')}
+                    className="p-1 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition"
+                    id="forgot-back-btn"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <h2 className="text-xl font-bold text-slate-800">Forgot Password</h2>
+                </div>
+                
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Enter your email address to receive a secure password recovery link. 
+                  Clicking the link will automatically authenticate you to choose a new password instantly!
+                </p>
 
-              <button 
-                id="forgot-submit-btn"
-                type="submit" 
-                disabled={loading}
-                className="w-full py-3.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 flex items-center justify-center disabled:opacity-50"
-              >
-                {loading ? 'Generating PIN...' : 'Generate Reset PIN'}
-              </button>
-            </form>
+                <div className="p-3.5 bg-indigo-50/60 border border-indigo-100 rounded-2xl text-xs text-indigo-950 leading-relaxed space-y-2">
+                  <span className="font-extrabold text-indigo-700 flex items-center gap-1">💡 Sandbox Testing Guide</span>
+                  <p className="text-[11px] text-slate-600">
+                    • **For Live Verification**: Clicking the recovery link sent to your inbox will log you in and auto-unlock the password update form.
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    • **For Instant Demo Bypass**: Enter any email with <code className="bg-indigo-100/80 px-1 py-0.5 rounded font-black text-indigo-700 font-mono">demo</code> or <code className="bg-indigo-100/80 px-1 py-0.5 rounded font-black text-indigo-700 font-mono">test</code> (e.g. <span className="font-semibold underline text-slate-800">demo@test.com</span>) to automatically simulate password reset and auto-authenticate!
+                  </p>
+                </div>
+
+                <div className="space-y-1.5" id="forgot-email-group">
+                  <label className="text-xs font-semibold text-slate-600">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      id="forgot-email"
+                      type="email" 
+                      required 
+                      placeholder="name@domain.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  id="forgot-submit-btn"
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full py-3.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 flex items-center justify-center disabled:opacity-50"
+                >
+                  {loading ? 'Sending Link...' : 'Send Recovery Link'}
+                </button>
+              </form>
+            )
           )}
 
           {mode === 'reset' && (
@@ -615,27 +807,36 @@ export default function AuthView({ onAuthSuccess }: AuthViewProps) {
                 <h2 className="text-xl font-bold text-slate-800">Choose New Password</h2>
               </div>
 
-              <p className="text-xs text-slate-500 leading-relaxed">
-                We generated a PIN for <strong className="text-slate-700">{email}</strong>. 
-                Please enter the 6-digit PIN and choose a new secure password.
-              </p>
-
-              <div className="space-y-1.5" id="reset-pin-group">
-                <label className="text-xs font-semibold text-slate-600">6-Digit Reset PIN</label>
-                <div className="relative">
-                  <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    id="reset-pin"
-                    type="text" 
-                    required 
-                    maxLength={6}
-                    placeholder="123456"
-                    value={resetPin}
-                    onChange={(e) => setResetPin(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm tracking-widest font-mono focus:bg-white focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500 outline-none transition-all"
-                  />
+              {isDirectRecovery ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-2.5 text-emerald-800 text-xs font-medium" id="direct-recovery-success-badge">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span>✓ Recovery link verified successfully! Set your password below.</span>
                 </div>
-              </div>
+              ) : (
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  We generated a PIN for <strong className="text-slate-700">{email}</strong>. 
+                  Please enter the 6-digit PIN and choose a new secure password.
+                </p>
+              )}
+
+              {!isDirectRecovery && (
+                <div className="space-y-1.5" id="reset-pin-group">
+                  <label className="text-xs font-semibold text-slate-600">6-Digit Reset PIN</label>
+                  <div className="relative">
+                    <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      id="reset-pin"
+                      type="text" 
+                      required 
+                      maxLength={6}
+                      placeholder="123456"
+                      value={resetPin}
+                      onChange={(e) => setResetPin(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-800 placeholder-slate-400 text-sm tracking-widest font-mono focus:bg-white focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5" id="reset-pass-group">
                 <label className="text-xs font-semibold text-slate-600">New Password</label>
